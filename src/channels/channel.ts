@@ -77,13 +77,16 @@ export class Channel {
                 this.io.sockets.connected[socket.id].broadcast
                     .to(data.channel)
                     .emit(data.event, data.channel, data.data);
-                this.hook(
-                    socket,
-                    data.channel,
-                    data.auth,
-                    "client_event",
-                    data.data
-                );
+
+                if (this.shouldTriggerWebhook(data.channel)) {
+                    this.hook(
+                        socket,
+                        data.channel,
+                        data.auth,
+                        "client_event",
+                        data.data
+                    );
+                }
             }
         }
     }
@@ -107,7 +110,9 @@ export class Channel {
                 );
             }
 
-            this.hook(socket, channel, auth, "leave", null);
+            if (this.shouldTriggerWebhook(channel)) {
+                this.hook(socket, channel, auth, "leave", null);
+            }
         }
     }
 
@@ -175,7 +180,9 @@ export class Channel {
             );
         }
 
-        this.hook(socket, channel, auth, "join", null);
+        if (this.shouldTriggerWebhook(channel)) {
+            this.hook(socket, channel, auth, "join", null);
+        }
     }
 
     /**
@@ -293,5 +300,18 @@ export class Channel {
         options.headers["Cookie"] = socket.request.headers.cookie;
         options.headers["X-Requested-With"] = "XMLHttpRequest";
         return options;
+    }
+
+    shouldTriggerWebhook(channel: string): boolean {
+        if (
+            typeof this.options.webhookChannels == "undefined" ||
+            !this.options.webhookChannels
+        ) {
+            return false;
+        }
+
+        let webhookChannels = this.options.webhookChannels as string[];
+
+        return webhookChannels.find(c => channel.startsWith(c)) !== undefined;
     }
 }
