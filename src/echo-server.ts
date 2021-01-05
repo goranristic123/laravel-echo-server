@@ -1,11 +1,11 @@
-import { HttpSubscriber, RedisSubscriber, Subscriber } from './subscribers';
-import { Channel } from './channels';
-import { Server } from './server';
-import { HttpApi } from './api';
-import { Log } from './log';
-import * as fs from 'fs';
-const packageFile = require('../package.json');
-const { constants } = require('crypto');
+import { HttpSubscriber, RedisSubscriber, Subscriber } from "./subscribers";
+import { Channel } from "./channels";
+import { Server } from "./server";
+import { HttpApi } from "./api";
+import { Log } from "./log";
+import * as fs from "fs";
+const packageFile = require("../package.json");
+const { constants } = require("crypto");
 
 /**
  * Echo server class.
@@ -15,14 +15,14 @@ export class EchoServer {
      * Default server options.
      */
     public defaultOptions: any = {
-        authHost: 'http://localhost',
-        authEndpoint: '/broadcasting/auth',
+        authHost: "http://localhost",
+        authEndpoint: "/broadcasting/auth",
         clients: [],
-        database: 'redis',
+        database: "redis",
         databaseConfig: {
             redis: {},
             sqlite: {
-                databasePath: '/database/laravel-echo-server.sqlite'
+                databasePath: "/database/laravel-echo-server.sqlite"
             }
         },
         devMode: false,
@@ -31,19 +31,25 @@ export class EchoServer {
         protocol: "http",
         socketio: {},
         secureOptions: constants.SSL_OP_NO_TLSv1,
-        sslCertPath: '',
-        sslKeyPath: '',
-        sslCertChainPath: '',
-        sslPassphrase: '',
+        sslCertPath: "",
+        sslKeyPath: "",
+        sslCertChainPath: "",
+        sslPassphrase: "",
         subscribers: {
             http: true,
             redis: true
         },
         apiOriginAllow: {
             allowCors: false,
-            allowOrigin: '',
-            allowMethods: '',
-            allowHeaders: ''
+            allowOrigin: "",
+            allowMethods: "",
+            allowHeaders: ""
+        },
+        hookHost: null,
+        hooks: {
+            onJoinEndpoint: null,
+            onLeaveEndpoint: null,
+            onClientEventEndpoint: null
         }
     };
 
@@ -75,7 +81,7 @@ export class EchoServer {
     /**
      * Create a new instance.
      */
-    constructor() { }
+    constructor() {}
 
     /**
      * Start the Echo Server.
@@ -86,12 +92,18 @@ export class EchoServer {
             this.startup();
             this.server = new Server(this.options);
 
-            this.server.init().then(io => {
-                this.init(io).then(() => {
-                    Log.info('\nServer ready!\n');
-                    resolve(this);
-                }, error => Log.error(error));
-            }, error => Log.error(error));
+            this.server.init().then(
+                io => {
+                    this.init(io).then(
+                        () => {
+                            Log.info("\nServer ready!\n");
+                            resolve(this);
+                        },
+                        error => Log.error(error)
+                    );
+                },
+                error => Log.error(error)
+            );
         });
     }
 
@@ -104,15 +116,25 @@ export class EchoServer {
 
             this.subscribers = [];
             if (this.options.subscribers.http)
-                this.subscribers.push(new HttpSubscriber(this.server.express, this.options));
+                this.subscribers.push(
+                    new HttpSubscriber(this.server.express, this.options)
+                );
             if (this.options.subscribers.redis)
                 this.subscribers.push(new RedisSubscriber(this.options));
 
-            this.httpApi = new HttpApi(io, this.channel, this.server.express, this.options.apiOriginAllow);
+            this.httpApi = new HttpApi(
+                io,
+                this.channel,
+                this.server.express,
+                this.options.apiOriginAllow
+            );
             this.httpApi.init();
 
             this.onConnect();
-            this.listen().then(() => resolve(), err => Log.error(err));
+            this.listen().then(
+                () => resolve(),
+                err => Log.error(err)
+            );
         });
     }
 
@@ -124,9 +146,9 @@ export class EchoServer {
         Log.info(`version ${packageFile.version}\n`);
 
         if (this.options.devMode) {
-            Log.warning('Starting server in DEV mode...\n');
+            Log.warning("Starting server in DEV mode...\n");
         } else {
-            Log.info('Starting server...\n')
+            Log.info("Starting server...\n");
         }
     }
 
@@ -134,7 +156,7 @@ export class EchoServer {
      * Stop the echo server.
      */
     stop(): Promise<any> {
-        console.log('Stopping the LARAVEL ECHO SERVER')
+        console.log("Stopping the LARAVEL ECHO SERVER");
         let promises = [];
         this.subscribers.forEach(subscriber => {
             promises.push(subscriber.unsubscribe());
@@ -142,7 +164,7 @@ export class EchoServer {
         promises.push(this.server.io.close());
         return Promise.all(promises).then(() => {
             this.subscribers = [];
-            console.log('The LARAVEL ECHO SERVER server has been stopped.');
+            console.log("The LARAVEL ECHO SERVER server has been stopped.");
         });
     }
 
@@ -183,27 +205,25 @@ export class EchoServer {
      * Broadcast to others on channel.
      */
     toOthers(socket: any, channel: string, message: any): boolean {
-        socket.broadcast.to(channel)
-            .emit(message.event, channel, message.data);
+        socket.broadcast.to(channel).emit(message.event, channel, message.data);
 
-        return true
+        return true;
     }
 
     /**
      * Broadcast to all members on channel.
      */
     toAll(channel: string, message: any): boolean {
-        this.server.io.to(channel)
-            .emit(message.event, channel, message.data);
+        this.server.io.to(channel).emit(message.event, channel, message.data);
 
-        return true
+        return true;
     }
 
     /**
      * On server connection.
      */
     onConnect(): void {
-        this.server.io.on('connection', socket => {
+        this.server.io.on("connection", socket => {
             this.onSubscribe(socket);
             this.onUnsubscribe(socket);
             this.onDisconnecting(socket);
@@ -215,7 +235,7 @@ export class EchoServer {
      * On subscribe to a channel.
      */
     onSubscribe(socket: any): void {
-        socket.on('subscribe', data => {
+        socket.on("subscribe", data => {
             this.channel.join(socket, data);
         });
     }
@@ -224,8 +244,8 @@ export class EchoServer {
      * On unsubscribe from a channel.
      */
     onUnsubscribe(socket: any): void {
-        socket.on('unsubscribe', data => {
-            this.channel.leave(socket, data.channel, 'unsubscribed');
+        socket.on("unsubscribe", data => {
+            this.channel.leave(socket, data.channel, "unsubscribed", data.auth);
         });
     }
 
@@ -233,10 +253,10 @@ export class EchoServer {
      * On socket disconnecting.
      */
     onDisconnecting(socket: any): void {
-        socket.on('disconnecting', (reason) => {
+        socket.on("disconnecting", reason => {
             Object.keys(socket.rooms).forEach(room => {
                 if (room !== socket.id) {
-                    this.channel.leave(socket, room, reason);
+                    this.channel.leave(socket, room, reason, {});
                 }
             });
         });
@@ -246,7 +266,7 @@ export class EchoServer {
      * On client events.
      */
     onClientEvent(socket: any): void {
-        socket.on('client event', data => {
+        socket.on("client event", data => {
             this.channel.clientEvent(socket, data);
         });
     }
